@@ -238,8 +238,6 @@ class Game:
             if self.players[self.player_to_move][5]:
                 continue
             next_player_to_move_found = True
-        if self.started and self.num_of_players == 1:
-            self.player_win(self.player_to_move)
 
     def roll_dice(self, p = None):
         self.dice_pips = random.randint(1,6)
@@ -387,6 +385,8 @@ class Game:
         if self.player_to_move == p:
             self.next_player_to_move()
         del self.player_ids_connected[self.player_ids_connected.index(id_count)]
+        if self.started and self.num_of_players == 1:
+            self.player_win(self.player_to_move)
 
     def player_ready_up(self, p):
         self.players[p][3] = True
