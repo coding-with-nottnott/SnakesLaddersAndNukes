@@ -52,8 +52,9 @@ class Game:
         self.max_num_of_nukes = 15
 
         # 0: position, 1: color, 2: num of nukes, 3: ready or not, 4: debug mode, 5: new player
+        self.INITAL_PLAYER_STARTING_STATE = [[-10, -20], None, 0, False, False, True]
         for i in range(4):
-            self.players.append([[-1, -1], None, 0, False, False, True])
+            self.players.append(self.INITAL_PLAYER_STARTING_STATE)
         self.started = False
         self.nukes = []
         if not debug.disable_snakes_and_ladders:
@@ -361,16 +362,17 @@ class Game:
         # 0: position. 1: color. 2: num of nukes. 3: ready to play or not. 4: debug on
         self.num_of_players += 1
         self.players[p] = [[0, 0], None, 0, False, debug, False]
+        self.player_ids_connected.append(id_count)
         if debug:
             self.activate_debug(p)
 
-    def append_id_count(self, id_count):
-        self.player_ids_connected.append(id_count)
-
     def player_lost_connection(self, p, id_count):
-        self.blocked_colors.remove(self.players[p][1])
-        self.players[p][0] =  [-10, 20]
+        if self.players[p][1] != None:
+            self.blocked_colors.remove(self.players[p][1])
         self.num_of_players -= 1
+        if self.players[p][3]:
+            self.ready_count -= 1
+        self.players[p] = self.INITAL_PLAYER_STARTING_STATE
         if self.player_to_move == p:
             self.next_player_to_move()
         del self.player_ids_connected[self.player_ids_connected.index(id_count)]

@@ -4,15 +4,20 @@ import sys
 import network
 import load_assets as a
 import debug
+# this import statement is actually needed if you want to run turn the client into an exe ;)
+import game
+# game = game.Game()
 # color constants
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
-YELLOW = (255, 255, 0)
+# pure yellow hurts everyone's eyes
+YELLOW = (252, 226, 5)
 
 pygame.font.init()
+pygame.display.set_icon(a.ICON)
 
 WIDTH = 750
 HEIGHT = 750
@@ -174,9 +179,13 @@ def check_and_display_waiting_for_players(game, p):
         font = pygame.font.SysFont("consolas", 25)
         text = font.render("Lobby: " + str(game.id), True, BLACK)
         WIN.blit(text, (10, 10))
+        text = font.render("Player: " + str(p), True, BLACK)
+        WIN.blit(text, (10, 40))
+        text = font.render(game.players[p][1], True, parse_color(game.players[p][1]))
+        WIN.blit(text, (10, 70))
         font = pygame.font.SysFont("consolas", 40)
         text = font.render("Players in Lobby: (" + str(game.num_of_players) + "/4)", True, BLACK)
-        blit_centered_text(text, -300)
+        blit_centered_text(text, -220)
         if game.num_of_players < 4:
             font = pygame.font.SysFont("consolas", 50)
             text = font.render("Waiting for Players...", True, BLUE)
@@ -381,24 +390,24 @@ def draw_game_objects(game=None, p=None, player_position_cache=None):
         if game.winner == p:
             #, parse_color(game.players[game.winner][1])
             if game.num_nukes_used == 0:
-                text = font.render("YOU WON! :D", True, GREEN)
+                text = font.render("YOU WON! :D", True, parse_color(game.players[game.winner][1]))
                 if sound_enabled:
                     a.pacifistwin.play()
                 pygame.mixer.music.stop()
             if game.num_nukes_used >= 1:
-                text = font.render("You won...", True, RED)
+                text = font.render("You won...", True, parse_color(game.players[game.winner][1]))
                 if sound_enabled:
                     a.nukewin.play()
                 if music_degraded == 0:
                     pygame.mixer.music.stop()
         else:
             if game.num_nukes_used == 0:
-                text = font.render(game.players[game.winner][1].upper() + " WON! :)", True, GREEN)
+                text = font.render(game.players[game.winner][1].upper() + " WON! :)", True, parse_color(game.players[game.winner][1]))
                 if sound_enabled:
                     a.pacifistwin.play()
                 pygame.mixer.music.stop()
             if game.num_nukes_used >= 1:
-                text = font.render(game.players[game.winner][1] + " won...", True, RED)
+                text = font.render(game.players[game.winner][1] + " won...", True, parse_color(game.players[game.winner][1]))
                 if sound_enabled:
                     a.nukewin.play()
                 if music_degraded == 0:
@@ -479,7 +488,6 @@ def connect():
     pygame.display.update()
     try:
         p = int(n.get_p())
-        print(p)
     except ValueError:
         print("Server crashed!")
         pygame.quit()
@@ -495,7 +503,7 @@ def connect():
 
 
 def main(p):
-    global players_moving, player_position_cache, music_degraded
+    global players_moving, player_position_cache, music_degraded, game
     run = True
     nuke_rendered = False
     nukes_used = 0

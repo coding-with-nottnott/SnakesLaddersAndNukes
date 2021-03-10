@@ -4,6 +4,9 @@ import os
 
 def load(name):
     return pygame.image.load(os.path.join('Assets', name))
+
+ICON = load('icon.png')
+
 TITLE1 = load('title1.png')
 TITLE2 = load('title2.png')
 TITLE3 = load('title3.png')
