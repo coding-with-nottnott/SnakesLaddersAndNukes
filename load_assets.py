@@ -66,6 +66,18 @@ SNAKE4 = pygame.transform.scale(SNAKE4, (192, 257))
 
 SNAKES = (SNAKE1, SNAKE2, SNAKE3, SNAKE4)
 
+SNAKE1DEG = load('snake1Degraded.png')
+SNAKE2DEG = load('snake2Degraded.png')
+SNAKE3DEG = load('snake3Degraded.png')
+SNAKE4DEG = load('snake4Degraded.png')
+
+SNAKE1DEG = pygame.transform.scale(SNAKE1DEG, (60, 50))
+SNAKE2DEG = pygame.transform.scale(SNAKE2DEG, (115, 120))
+SNAKE3DEG = pygame.transform.scale(SNAKE3DEG, (52, 320))
+SNAKE4DEG = pygame.transform.scale(SNAKE4DEG, (192, 257))
+
+SNAKESDEG = (SNAKE1DEG, SNAKE2DEG, SNAKE3DEG, SNAKE4DEG)
+
 LADDER1 = load('ladder1.png')
 LADDER2 = load('ladder2.png')
 LADDER3 = load('ladder3.png')
@@ -79,6 +91,14 @@ LADDER3 = pygame.transform.scale(LADDER3, (90, 96))
 LADDER4 = pygame.transform.scale(LADDER4, (92, 274))
 
 LADDERS = (LADDER1, LADDER2, LADDER3, LADDER4)
+
+LADDER2DEG = load('ladder2Degraded.png')
+LADDER4DEG = load('ladder4Degraded.png')
+
+LADDER2DEG = pygame.transform.scale(LADDER2DEG, (30, 108))
+LADDER4DEG = pygame.transform.scale(LADDER4DEG, (92, 274))
+
+LADDERSDEG = (LADDER1, LADDER2DEG, LADDER3, LADDER4DEG)
 
 PIECERED = load('pieceRed.png')
 PIECERED = pygame.transform.scale(PIECERED, (40, 40))

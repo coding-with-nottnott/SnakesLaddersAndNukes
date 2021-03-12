@@ -25,7 +25,7 @@ class Network:
     def connect(self):
         try:
             self.client.connect(self.addr)
-            return self.client.recv(2048).decode()
+            return self.client.recv(8192).decode()
         except:
             print("Network error!")
 
@@ -35,6 +35,6 @@ class Network:
     def send(self, data):
         try:
             self.client.send(str.encode(data))
-            return pickle.loads(self.client.recv(2048))
+            return pickle.loads(self.client.recv(8192))
         except Exception as e:
             print(e)

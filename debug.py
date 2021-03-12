@@ -11,8 +11,6 @@ debug = False
 # debug = True
 
 # debug movement commands
-if debug:
-    movement = True
 movement = False
 # movement = True
 

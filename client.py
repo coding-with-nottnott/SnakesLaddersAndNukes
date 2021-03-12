@@ -4,6 +4,7 @@ import sys
 import network
 import load_assets as a
 import debug
+import gc
 # this import statement is actually needed if you want to run turn the client into an exe ;)
 import game
 # game = game.Game()
@@ -47,26 +48,28 @@ SQUARE_SIZE = 51
 BOARD_START_X = 117
 BOARD_START_Y = 517
 
-players_moving = []
-for i in range(5):
-    players_moving.append(False)
+def init_vars():
+    global players_moving, player_movement_started, player_position_cache, nuke_cache, ticks_passed, nukes_cached, distance_x, distance_y, shake_amount, shake_direction
+    players_moving = []
+    for i in range(5):
+        players_moving.append(False)
 
-player_movement_started = []
-for i in range(5):
-    player_movement_started.append(False)
+    player_movement_started = []
+    for i in range(5):
+        player_movement_started.append(False)
 
-player_position_cache = []
-for i in range(5):
-    player_position_cache.append([0, 0])
+    player_position_cache = []
+    for i in range(5):
+        player_position_cache.append([0, 0])
 
-nuke_cache = []
-nukes_cached = False
+    nuke_cache = []
+    nukes_cached = False
 
-ticks_passed = 0
-distance_x, distance_y = 0, 0
+    ticks_passed = 0
+    distance_x, distance_y = 0, 0
 
-shake_amount = 0
-shake_direction = True
+    shake_amount = 0
+    shake_direction = True
 
 class Explosion(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -214,90 +217,104 @@ def check_and_ask_for_color(game, p):
             btn.disable()
 
 
-def draw_game_objects(game=None, p=None, player_position_cache=None):
-    # a box on the board is 46x47 pixels at 750x750 resolution
-    # moving x or y means change by 51 pixels in that direction
-    # def calculate_offset(position):
-    #     y_offset = position // 10
-    #     x_offset = position % 10
-    #     if y_offset % 2 != 0:
-    #         x_offset = 9 - x_offset
-    #     return y_offset, x_offset
-
     # nudge each of the player tokens to prevent overlapping
-    def calculate_offset_nudge(player):
-        return (player - 1) * 5
+def calculate_offset_nudge(player):
+    return (player - 1) * 5
 
-    def draw_stationary_pieces(player):
-        # if shake_direction true, move right
-        global shake_amount, shake_direction
-        x_offset, y_offset = game.players[player][0][0], game.players[player][0][1]
-        offset_nudge = calculate_offset_nudge(player)
-        if game.piece_shake == 1:
-            if shake_direction:
-                shake_amount += 1
-                if shake_amount == 5:
-                    shake_direction = not shake_direction
-            if not shake_direction:
-                shake_amount -= 1
-                if shake_amount == -5:
-                    shake_direction = not shake_direction
-        if game.pieces_degraded == 0:
-            WIN.blit(a.PIECES[game.players[player][1]],
-                     (BOARD_START_X + x_offset * SQUARE_SIZE + offset_nudge + shake_amount,
-                      BOARD_START_Y - y_offset * SQUARE_SIZE + offset_nudge))
-        else:
-            WIN.blit(a.PIECESDEG[game.players[player][1]],
-                     (BOARD_START_X + x_offset * SQUARE_SIZE + offset_nudge + shake_amount,
-                      BOARD_START_Y - y_offset * SQUARE_SIZE + offset_nudge))
+def draw_stationary_pieces(player):
+    # if shake_direction true, move right
+    global shake_amount, shake_direction
+    x_offset, y_offset = game.players[player][0][0], game.players[player][0][1]
+    offset_nudge = calculate_offset_nudge(player)
+    if game.piece_shake == 1:
+        if shake_direction:
+            shake_amount += 1
+            if shake_amount == 5:
+                shake_direction = not shake_direction
+        if not shake_direction:
+            shake_amount -= 1
+            if shake_amount == -5:
+                shake_direction = not shake_direction
+    if game.pieces_degraded == 0:
+        WIN.blit(a.PIECES[game.players[player][1]],
+                 (BOARD_START_X + x_offset * SQUARE_SIZE + offset_nudge + shake_amount,
+                  BOARD_START_Y - y_offset * SQUARE_SIZE + offset_nudge))
+    else:
+        WIN.blit(a.PIECESDEG[game.players[player][1]],
+                 (BOARD_START_X + x_offset * SQUARE_SIZE + offset_nudge + shake_amount,
+                  BOARD_START_Y - y_offset * SQUARE_SIZE + offset_nudge))
 
-    def draw_game_pieces(game):
-        global player_movement_started
-        for player in range(1, 5):
-            if game.players[player][3] == True:
-                draw_stationary_pieces(player)
-                if players_moving[player] and not player_movement_started[player] and not game.nuke_used:
-                    play_movement_animation(player, calculate_offset_nudge(player), game)
+def draw_game_pieces(game, p):
+    global player_movement_started
+    for player in range(1, 5):
+        if game.players[player][3] == True:
+            draw_stationary_pieces(player)
+            if players_moving[player] and not player_movement_started[player] and not game.nuke_used:
+                play_movement_animation(player, calculate_offset_nudge(player), p, game)
 
 
-    def play_movement_animation(player, offset_nudge, game):
-        global players_moving, player_position_cache, player_movement_started, ticks_passed, distance_x, distance_y
-        # destination is game.players[player][0][0]
-        # old position is player_position_cache
+def play_movement_animation(player, offset_nudge, p, game):
+    global players_moving, player_position_cache, player_movement_started, ticks_passed, distance_x, distance_y
+    # destination is game.players[player][0][0]
+    # old position is player_position_cache
+    ticks_passed = 0
+    if game.player_travelled_on_movable[player]:
+        # print("travelled on movable")
+        # print(game.players_previous_space[player])
+        loop_completed = False
+        old_x, old_y = player_position_cache[player][0], player_position_cache[player][1]
+        new_x, new_y = game.players_previous_space[player][0], game.players_previous_space[player][1]
+        distance_x, distance_y = new_x - old_x, new_y - old_y
+    else:
+        # print("didn't")
+        # print(game.players_previous_space[player])
+        loop_completed = True
         old_x, old_y = player_position_cache[player][0], player_position_cache[player][1]
         new_x, new_y = game.players[player][0][0], game.players[player][0][1]
         distance_x, distance_y = new_x - old_x, new_y - old_y
-        ticks_passed = 0
-        while players_moving[player]:
-            player_movement_started[player] = True
-            ticks_passed += 1
-            draw_bg(game)
-            draw_board(game)
-            draw_dice(p)
-            draw_nuke_buttons(p)
-            if not debug.disable_move_turns:
-                draw_move_icon()
-            if not debug.disable_snakes_and_ladders:
-                draw_snakes_and_ladders()
-            for hypothetical_stationary_player in range(1, game.num_of_players + 1):
+    while players_moving[player]:
+        player_movement_started[player] = True
+        ticks_passed += 1
+        draw_bg(game)
+        draw_board(game)
+        draw_dice(p)
+        draw_nuke_buttons(p)
+        if not debug.disable_move_turns:
+            draw_move_icon()
+        if not debug.disable_snakes_and_ladders:
+            draw_snakes_and_ladders()
+        for hypothetical_stationary_player in range(1, 5):
+            if game.players[hypothetical_stationary_player][1] != None:
                 if hypothetical_stationary_player != player:
                     draw_stationary_pieces(hypothetical_stationary_player)
-            draw_nukes()
-            if game.pieces_degraded == 0:
-                WIN.blit(a.PIECES[game.players[player][1]],
-                         (BOARD_START_X + old_x * SQUARE_SIZE + 0.85 * ticks_passed * distance_x + offset_nudge,
-                          BOARD_START_Y - old_y * SQUARE_SIZE - 0.85 * ticks_passed * distance_y + offset_nudge))
-            else:
-                WIN.blit(a.PIECESDEG[game.players[player][1]],
-                         (BOARD_START_X + old_x * SQUARE_SIZE + 0.85 * ticks_passed * distance_x + offset_nudge,
-                          BOARD_START_Y - old_y * SQUARE_SIZE - 0.85 * ticks_passed * distance_y + offset_nudge))
-            explosion_group.draw(WIN)
-            explosion_group.update()
-            pygame.display.update()
-            if ticks_passed == 60:
-                players_moving[player] = False
+        draw_nukes()
+        if game.pieces_degraded == 0:
+            WIN.blit(a.PIECES[game.players[player][1]],
+                     (BOARD_START_X + old_x * SQUARE_SIZE + 0.85 * ticks_passed * distance_x + offset_nudge,
+                      BOARD_START_Y - old_y * SQUARE_SIZE - 0.85 * ticks_passed * distance_y + offset_nudge))
+        else:
+            WIN.blit(a.PIECESDEG[game.players[player][1]],
+                     (BOARD_START_X + old_x * SQUARE_SIZE + 0.85 * ticks_passed * distance_x + offset_nudge,
+                      BOARD_START_Y - old_y * SQUARE_SIZE - 0.85 * ticks_passed * distance_y + offset_nudge))
+        explosion_group.draw(WIN)
+        explosion_group.update()
+        pygame.display.update()
+        if not loop_completed and ticks_passed == 60:
+            # for nuke in (range(len(nuke_cache))):
+            #     if nuke_cache[nuke] == game.players_previous_space[player]:
+            #         nuke_cache[nuke] = [-100, -100]
+            cache_nukes(p, game)
+            # game = n.send("get")
+            old_x, old_y = game.players_previous_space[player][0], game.players_previous_space[player][1]
+            new_x, new_y = game.players[player][0][0], game.players[player][0][1]
+            distance_x, distance_y = new_x - old_x, new_y - old_y
+            ticks_passed = 0
+            loop_completed = True
+        if ticks_passed == 60 and loop_completed:
+            players_moving[player] = False
 
-    def draw_snakes_and_ladders():
+def draw_snakes_and_ladders():
+    if game.snakes_and_ladders_degraded == 0:
         for snake in range(3, -1, -1):
             # y_offset, x_offset = calculate_offset(game.snakes[snake][0])
             # if game.snakes[snake][3] == True:
@@ -327,103 +344,140 @@ def draw_game_objects(game=None, p=None, player_position_cache=None):
             if ladder == 3:
                 WIN.blit(a.LADDER4,
                          (117 + (game.ladders[ladder][0][0] * 51) - 17, 517 - (game.ladders[ladder][0][1] * 51) - 240))
+    else:
+        for snake in range(3, -1, -1):
+            if snake == 0:
+                WIN.blit(a.SNAKE1DEG,
+                         (117 + (game.snakes[snake][0][0] * 51) - 19, 517 - (game.snakes[snake][0][1] * 51) + 33))
+            if snake == 1:
+                WIN.blit(a.SNAKE2DEG,
+                         (117 + (game.snakes[snake][0][0] * 51) - 65, 517 - (game.snakes[snake][0][1] * 51) + 23))
+            if snake == 2:
+                WIN.blit(a.SNAKE3DEG,
+                         (117 + (game.snakes[snake][0][0] * 51) + 10, 517 - (game.snakes[snake][0][1] * 51) + 20))
+            if snake == 3:
+                WIN.blit(a.SNAKE4DEG,
+                         (117 + (game.snakes[snake][0][0] * 51) , 517 - (game.snakes[snake][0][1] * 51) + 28))
+        for ladder in range (3, -1, -1):
+            if ladder == 0:
+                WIN.blit(a.LADDER1,
+                         (117 + (game.ladders[ladder][0][0] * 51) + 15, 517 - (game.ladders[ladder][0][1] * 51) - 148))
+            if ladder == 1:
+                WIN.blit(a.LADDER2DEG,
+                         (117 + (game.ladders[ladder][0][0] * 51) + 15, 517 - (game.ladders[ladder][0][1] * 51) - 79))
+            if ladder == 2:
+                WIN.blit(a.LADDER3,
+                         (117 + (game.ladders[ladder][0][0] * 51) - 41, 517 - (game.ladders[ladder][0][1] * 51) - 67))
+            if ladder == 3:
+                WIN.blit(a.LADDER4DEG,
+                         (117 + (game.ladders[ladder][0][0] * 51) - 17, 517 - (game.ladders[ladder][0][1] * 51) - 240))
 
-    def draw_nukes():
-        # WIN.blit(a.NUCLEARBOMB,
-        #          (117 + (game.ladders[ladder][0][0] * 51) - 17, 517 - (game.ladders[ladder][0][1] * 51) - 240))
-        for nuke in (range(len(nuke_cache))):
-            WIN.blit(a.NUCLEARBOMB,
-                     (125 + (nuke_cache[nuke][0] * 51), 522 - (nuke_cache[nuke][1] * 51)))
+def draw_nukes():
+    # WIN.blit(a.NUCLEARBOMB,
+    #          (117 + (game.ladders[ladder][0][0] * 51) - 17, 517 - (game.ladders[ladder][0][1] * 51) - 240))
+    for nuke in (range(len(nuke_cache))):
+        WIN.blit(a.NUCLEARBOMB,
+                 (125 + (nuke_cache[nuke][0] * 51), 522 - (nuke_cache[nuke][1] * 51)))
 
-    def draw_nuke_buttons(p):
-        if game.players[p][2] == 0:
-            WIN.blit(a.NUCLEARICONTRANSPARENT, NUKE_ICON_LOCATION)
+def draw_nuke_buttons(p):
+    if game.players[p][2] == 0:
+        WIN.blit(a.NUCLEARICONTRANSPARENT, NUKE_ICON_LOCATION)
+    else:
+        WIN.blit(a.NUCLEARICON, NUKE_ICON_LOCATION)
+        if game.degraded_nuke_text == 0:
+            font = pygame.font.SysFont("consolas", 120)
+            text = font.render(str(game.players[p][2]), True, RED)
+            WIN.blit(text, (90, 620))
         else:
-            WIN.blit(a.NUCLEARICON, NUKE_ICON_LOCATION)
-            if game.degraded_nuke_text == 0:
-                font = pygame.font.SysFont("consolas", 120)
-                text = font.render(str(game.players[p][2]), True, RED)
-                WIN.blit(text, (90, 620))
-            else:
-                font = pygame.font.SysFont("impact", 120)
-                text = font.render(str(game.players[p][2]), True, RED)
-                WIN.blit(text, (90, 600))
-            NUKE_BUTTON[0].draw()
+            font = pygame.font.SysFont("impact", 120)
+            text = font.render(str(game.players[p][2]), True, RED)
+            WIN.blit(text, (90, 600))
+        NUKE_BUTTON[0].draw()
 
-    def draw_dice(p):
-        if game.player_to_move == p:
-            DICE_BUTTON[0].enable()
-        else:
-            DICE_BUTTON[0].disable()
-        DICE_BUTTON[0].draw()
-        if game.dice_degraded == 0:
-            WIN.blit(a.DICE[game.dice_pips], (550, 625))
-        else:
-            WIN.blit(a.DICEDEG[game.dice_pips], (550, 625))
+def draw_dice(p):
+    if game.player_to_move == p:
+        DICE_BUTTON[0].enable()
+    else:
+        DICE_BUTTON[0].disable()
+    DICE_BUTTON[0].draw()
+    if game.dice_degraded == 0:
+        WIN.blit(a.DICE[game.dice_pips], (550, 625))
+    else:
+        WIN.blit(a.DICEDEG[game.dice_pips], (550, 625))
 
-    def draw_move_icon():
-        for player in range(1, len(game.players)):
-            if player == game.player_to_move and game.pieces_degraded == 0:
-                if game.players[player][1] == "Red":
-                    WIN.blit(a.BIGGERPIECERED, MOVE_TURN_ICON_LOCATION)
-                if game.players[player][1] == "Green":
-                    WIN.blit(a.BIGGERPIECEGREEN, MOVE_TURN_ICON_LOCATION)
-                if game.players[player][1] == "Blue":
-                    WIN.blit(a.BIGGERPIECEBLUE, MOVE_TURN_ICON_LOCATION)
-                if game.players[player][1] == "Yellow":
-                    WIN.blit(a.BIGGERPIECEYELLOW, MOVE_TURN_ICON_LOCATION)
-            elif player == game.player_to_move and game.pieces_degraded == 1:
-                if game.players[player][1] == "Red":
-                    WIN.blit(a.BIGGERPIECEREDDEG, MOVE_TURN_ICON_LOCATION)
-                if game.players[player][1] == "Green":
-                    WIN.blit(a.BIGGERPIECEGREENDEG, MOVE_TURN_ICON_LOCATION)
-                if game.players[player][1] == "Blue":
-                    WIN.blit(a.BIGGERPIECEBLUEDEG, MOVE_TURN_ICON_LOCATION)
-                if game.players[player][1] == "Yellow":
-                    WIN.blit(a.BIGGERPIECEYELLOWDEG, MOVE_TURN_ICON_LOCATION)
+def draw_move_icon():
+    for player in range(1, len(game.players)):
+        if player == game.player_to_move and game.pieces_degraded == 0:
+            if game.players[player][1] == "Red":
+                WIN.blit(a.BIGGERPIECERED, MOVE_TURN_ICON_LOCATION)
+            if game.players[player][1] == "Green":
+                WIN.blit(a.BIGGERPIECEGREEN, MOVE_TURN_ICON_LOCATION)
+            if game.players[player][1] == "Blue":
+                WIN.blit(a.BIGGERPIECEBLUE, MOVE_TURN_ICON_LOCATION)
+            if game.players[player][1] == "Yellow":
+                WIN.blit(a.BIGGERPIECEYELLOW, MOVE_TURN_ICON_LOCATION)
+        elif player == game.player_to_move and game.pieces_degraded == 1:
+            if game.players[player][1] == "Red":
+                WIN.blit(a.BIGGERPIECEREDDEG, MOVE_TURN_ICON_LOCATION)
+            if game.players[player][1] == "Green":
+                WIN.blit(a.BIGGERPIECEGREENDEG, MOVE_TURN_ICON_LOCATION)
+            if game.players[player][1] == "Blue":
+                WIN.blit(a.BIGGERPIECEBLUEDEG, MOVE_TURN_ICON_LOCATION)
+            if game.players[player][1] == "Yellow":
+                WIN.blit(a.BIGGERPIECEYELLOWDEG, MOVE_TURN_ICON_LOCATION)
 
-    def draw_board(game):
-        WIN.blit(a.BOARD[game.board], (WIDTH / 2 - a.BOARD1.get_width() / 2, 30))
+def draw_board(game):
+    WIN.blit(a.BOARD[game.board], (WIDTH / 2 - a.BOARD1.get_width() / 2, 30))
 
-    def draw_winner_window(p, game):
-        font = pygame.font.SysFont("consolas", 70, bold=True)
-        if game.winner == p:
-            #, parse_color(game.players[game.winner][1])
-            if game.num_nukes_used == 0:
-                text = font.render("YOU WON! :D", True, parse_color(game.players[game.winner][1]))
-                if sound_enabled:
-                    a.pacifistwin.play()
+def draw_winner_window(p, game):
+    font = pygame.font.SysFont("consolas", 70, bold=True)
+    text = font.render("ERROR", True, parse_color(game.players[game.winner][1]))
+    if game.winner == p:
+        #, parse_color(game.players[game.winner][1])
+        if game.num_nukes_used == 0:
+            text = font.render("YOU WON! :D", True, parse_color(game.players[game.winner][1]))
+            if sound_enabled:
+                a.pacifistwin.play()
+            pygame.mixer.music.stop()
+        if game.num_nukes_used >= 1:
+            text = font.render("You won...", True, parse_color(game.players[game.winner][1]))
+            if sound_enabled:
+                a.nukewin.play()
+            if music_degraded == 0:
                 pygame.mixer.music.stop()
-            if game.num_nukes_used >= 1:
-                text = font.render("You won...", True, parse_color(game.players[game.winner][1]))
-                if sound_enabled:
-                    a.nukewin.play()
-                if music_degraded == 0:
-                    pygame.mixer.music.stop()
-        else:
-            if game.num_nukes_used == 0:
-                text = font.render(game.players[game.winner][1].upper() + " WON! :)", True, parse_color(game.players[game.winner][1]))
-                if sound_enabled:
-                    a.pacifistwin.play()
+    else:
+        if game.num_nukes_used == 0:
+            text = font.render(game.players[game.winner][1].upper() + " WON! :)", True, parse_color(game.players[game.winner][1]))
+            if sound_enabled:
+                a.pacifistwin.play()
+            pygame.mixer.music.stop()
+        if game.num_nukes_used >= 1:
+            text = font.render(game.players[game.winner][1] + " won...", True, parse_color(game.players[game.winner][1]))
+            if sound_enabled:
+                a.nukewin.play()
+            if music_degraded == 0:
                 pygame.mixer.music.stop()
-            if game.num_nukes_used >= 1:
-                text = font.render(game.players[game.winner][1] + " won...", True, parse_color(game.players[game.winner][1]))
-                if sound_enabled:
-                    a.nukewin.play()
-                if music_degraded == 0:
-                    pygame.mixer.music.stop()
-        blit_centered_text(text, y_offset=-325)
-        # else:
-        #     font = pygame.font.SysFont("consolas", 25)
-        #     if game.winner == p:
-        #         # text = font.render("You" + m.winner_message, True, WHITE)
-        #     else:
-        #         # text = font.render(game.players[game.winner][1] + m.winner_message, True,
-        #         #                    parse_color(game.players[game.winner][1]))
-        #     blit_centered_text(text, y_offset=-30)
-        #     text = font.render(m.winner_message_2, True, WHITE)
-        #     blit_centered_text(text, y_offset=30)
+    blit_centered_text(text, y_offset=-325)
+    # else:
+    #     font = pygame.font.SysFont("consolas", 25)
+    #     if game.winner == p:
+    #         # text = font.render("You" + m.winner_message, True, WHITE)
+    #     else:
+    #         # text = font.render(game.players[game.winner][1] + m.winner_message, True,
+    #         #                    parse_color(game.players[game.winner][1]))
+    #     blit_centered_text(text, y_offset=-30)
+    #     text = font.render(m.winner_message_2, True, WHITE)
+    #     blit_centered_text(text, y_offset=30)
 
+def draw_game_objects(game=None, p=None, player_position_cache=None):
+    # a box on the board is 46x47 pixels at 750x750 resolution
+    # moving x or y means change by 51 pixels in that direction
+    # def calculate_offset(position):
+    #     y_offset = position // 10
+    #     x_offset = position % 10
+    #     if y_offset % 2 != 0:
+    #         x_offset = 9 - x_offset
+    #     return y_offset, x_offset
     if game.started:
         READY_UP_BUTTON[0].disable()
     draw_board(game)
@@ -434,18 +488,17 @@ def draw_game_objects(game=None, p=None, player_position_cache=None):
     if not debug.disable_snakes_and_ladders:
         draw_snakes_and_ladders()
     draw_nukes()
-    draw_game_pieces(game)
+    draw_game_pieces(game, p)
     explosion_group.draw(WIN)
     explosion_group.update()
-    if game.winner != 0:
-        draw_winner_window(p, game)
+    # if game.winner != 0:
+    #     draw_winner_window(p)
 
     # pygame.draw.rect(WIN, BLACK, (122,522,46,47))
     # pygame.draw.rect(WIN, BLACK, (173,522,46,47))
     # pygame.draw.rect(WIN, BLACK, (122,471,46,47))
     # DEBUG CODE
     # redraw_window(white = False)
-
 
 def draw_bg(game=None):
     if game == None or game.discoloration == 0:
@@ -462,7 +515,7 @@ def draw_bg(game=None):
         elif game.discoloration >= 5:
             WIN.fill((0, 0, 0))
 
-def redraw_window(game=None, p=None, white=True):
+def redraw_window(game=None, p=None, white=True, update=True):
     if white == True:
         draw_bg(game)
     if game and p != None:
@@ -471,7 +524,8 @@ def redraw_window(game=None, p=None, white=True):
         # if player has not chosen color yet
         check_and_ask_for_color(game, p)
         check_and_display_waiting_for_players(game, p)
-    pygame.display.update()
+    if update:
+        pygame.display.update()
     # DEBUG CODE
     # pygame.time.delay(5999)
 
@@ -503,7 +557,7 @@ def connect():
 
 
 def main(p):
-    global players_moving, player_position_cache, music_degraded, game
+    global players_moving, player_position_cache, music_degraded, game, nukes_acquired
     run = True
     nuke_rendered = False
     nukes_used = 0
@@ -532,7 +586,7 @@ def main(p):
                 pygame.mixer.music.set_volume(0.1)
                 pygame.mixer.music.play(-1)
                 music_degraded = 1
-            if game.genocide == 1 and music_degraded == 1:
+            if music_degraded == 1:
                 # pygame.mixer.music.load(a.genocide)
                 pygame.mixer.music.load(a.but_nobody_came)
                 pygame.mixer.music.set_volume(0.1)
@@ -562,7 +616,7 @@ def main(p):
                         print("Position", game.players[p][0])
                         print("Color:", game.players[p][1])
                         print("Blocked colors", game.blocked_colors)
-            if event.type == pygame.KEYUP and debug.movement:
+            if event.type == pygame.KEYUP and debug.movement and game.started:
                 if event.key == pygame.K_1:
                     game = n.send("1")
                     debug_print(p, game)
@@ -595,6 +649,9 @@ def main(p):
                     debug_print(p, game)
                 if event.key == pygame.K_RIGHT:
                     game = n.send("Right")
+                    debug_print(p, game)
+                if event.key == pygame.K_h:
+                    game = n.send("killme")
                     debug_print(p, game)
         if not debug.printed and not debug.disable_snakes_and_ladders:
             print("Snake 0 (green loveable snake):", game.snakes[0])
@@ -638,26 +695,34 @@ def main(p):
                 nuke_rendered = True
         check_if_player_moving(game)
         # main game redraw function
-        redraw_window(game, p)
-        for player in range(1, game.num_of_players + 1):
-            if nukes_acquired != game.nukes_acquired[p] and not players_moving[p]:
-                for nuke in range(len(nuke_cache)):
-                    if game.nukes[nuke] != nuke_cache[nuke]:
-                        nuke_cache[nuke] = game.nukes[nuke]
-                if sound_enabled:
-                    a.nuke_get_sounds[random.randint(0, 4)].play()
-                nukes_acquired += 1
-            else:
-                for nuke in range(len(nuke_cache)):
-                    if game.nukes[nuke] != nuke_cache[nuke]:
-                        nuke_cache[nuke] = game.nukes[nuke]
+        redraw_window(game=game, p=p)
+        cache_nukes(p, game)
         cache_player_positions(game)
         if game.winner != 0:
-            pygame.time.delay(5000)
+            # game = n.send("ending")
+            redraw_window(game=game, p=p, update=False)
+            draw_winner_window(p, game)
+            pygame.display.update()
+            pygame.time.delay(3000)
             run = False
     del game
     nuke_cache.clear()
-    menu_screen()
+
+def cache_nukes(p, game):
+    global nukes_acquired
+    for player in range(1, game.num_of_players + 1):
+        if nukes_acquired != game.nukes_acquired[p] and not players_moving[p]:
+            for nuke in range(len(nuke_cache)):
+                if game.nukes[nuke] != nuke_cache[nuke]:
+                    nuke_cache[nuke] = game.nukes[nuke]
+            if sound_enabled:
+                a.nuke_get_sounds[random.randint(0, 4)].play()
+            nukes_acquired += 1
+        else:
+            for nuke in range(len(nuke_cache)):
+                if game.nukes[nuke] != nuke_cache[nuke]:
+                    nuke_cache[nuke] = game.nukes[nuke]
+
 
 def cache_player_positions(game):
     global players_moving, player_position_cache
@@ -683,13 +748,16 @@ def check_if_player_moving(game):
 
 
 def debug_print(p, game):
+    pass
     # print(game.players[p][0], ' ', end='')
-    print("Num of nukes", game.players[p][2])
-    print(game.player_to_move)
-    print(game.players[game.player_to_move][1], "to move")
+    # print("Num of nukes", game.players[p][2])
+    # print(game.player_to_move)
+    # print(game.players[game.player_to_move][1], "to move")
 
 def menu_screen():
-    global nukes_cached, sound_enabled
+    global nukes_cached, sound_enabled, shake_amount, shake_direction
+    init_vars()
+    explosion_group.empty()
     run = True
     if music_degraded == 0 and sound_enabled:
         pygame.mixer.music.stop()

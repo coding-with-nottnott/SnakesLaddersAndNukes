@@ -1,9 +1,10 @@
 import socket
-import _thread
+import threading
 import pickle
 import game
 import debug
 import configparser
+import sys
 config = configparser.ConfigParser()
 
 config.read('serverconfig.ini')
@@ -13,6 +14,7 @@ port = int(config['Server']['port'])
 # server = "192.168.1.79"
 # port = 5555
 
+# socket.setdefaulttimeout(1)
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 try:
@@ -23,24 +25,24 @@ except socket.error as e:
 s.listen()
 print("Waiting for a connection, Server Started")
 
-connected = set()
+# connected = set()
 games = {}
 game_id = 0
 total_id_count = 0
 p = 0
 game_found = False
 
-def threaded_client(conn, p, game_id, id_count, addr):
+def threaded_client(conn, p, local_game_id, id_count, addr):
     global total_id_count
 
-    connected = True
     reply = ""
+    game = games[local_game_id]
     while True:
         try:
-            data = conn.recv(2048).decode()
+            data = conn.recv(8192).decode()
 
-            if game_id in games:
-                game = games[game_id]
+            if local_game_id in games:
+                game = games[local_game_id]
 
                 if not data:
                     break
@@ -60,29 +62,32 @@ def threaded_client(conn, p, game_id, id_count, addr):
                     elif data in ("-1", "1", "2", "3", "4", "5", "6"):
                         value = int(data)
                         game.move_player(p, value)
-
+                    elif data == "ending":
+                        conn.sendall(pickle.dumps(game))
+                        break
+                        # conn.close()
                     # reply = game
                     conn.sendall(pickle.dumps(game))
 
-                    if game.winner != 0:
-                        break
+                if game.winner != 0:
+                    break
             else:
                 break
         except:
             break
+    # print("discon")
     game.player_lost_connection(p, id_count)
     print("Lost connection to", addr, ", player", p, "in game", game_id)
-    # total_id_count -= 1
-    # if game_id in games:
-    #     game = games[game_id]
-    #     game.player_lost_connection(p)
+    close_game_if_empty(local_game_id)
+    print("Closing thread")
 
-    if game.num_of_players == 0:
+def close_game_if_empty(game_id):
+    global games
+    if games[game_id].num_of_players == 0 and games[game_id].started:
         print("Closing game", game_id)
         del games[game_id]
-    # id_count -= 1
-    # conn.close()
-    # del conn
+    else:
+        print("Not closing game")
 
 def start_new_game(game_id):
     games[game_id] = game.Game(game_id)
@@ -93,12 +98,14 @@ def start_new_game(game_id):
 #     game_id = new_game_id
 
 def start_new_threaded_client(p, unique_game_id):
+    conn.send(str.encode(str(p)))
     games[unique_game_id].new_player(p, id_count=total_id_count, debug=debug.debug)
     print(addr[0], "is player", p, "with ID", total_id_count, "joining game", unique_game_id)
-    conn.send(str.encode(str(p)))
-    _thread.start_new_thread(threaded_client, (conn, p, unique_game_id, total_id_count, addr))
+    new_thread = threading.Thread(target=threaded_client, args=(conn, p, unique_game_id, total_id_count, addr), daemon=True)
+    new_thread.start()
 
-
+# game_closer_daemon = threading.Thread(target=close_game_if_empty, daemon=True)
+# game_closer_daemon.start()
 while True:
     conn, addr = s.accept()
     print("Connected to:", addr)
@@ -111,9 +118,12 @@ while True:
 
     if games:
         for id in games:
+            if games[id].started:
+                continue
             if not game_found:
-                if not games[id].started:
-                    if games[id].num_of_players < 4:
+                # if not games[id].started:
+                #     if games[id].num_of_players < 4:
+                if games[id].num_of_players < 4:
                         for potential_player in range(1, 5):
                             if games[id].players[potential_player][5]:
                                 p = potential_player

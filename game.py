@@ -28,10 +28,18 @@ class Game:
         self.num_of_players = 0
         self.ready_count = 0
         self.players = [None]
+
+        self.players_previous_space = [None]
+        self.player_travelled_on_movable = [None]
+
         self.blocked_colors = []
         self.id = id
         self.player_ids_connected = []
+
         self.winner = 0
+        self.winner_set = False
+        self.game_ended = False
+
         self.time_to_move = 120
         self.nuke_used = False
 
@@ -40,7 +48,7 @@ class Game:
         self.pieces_degraded = 0
         self.dice_degraded = 0
         self.degraded_nuke_text = 0
-        self.genocide = 0
+        self.snakes_and_ladders_degraded = 0
         self.piece_shake = 0
 
         self.nukes_acquired = [None, 0, 0, 0, 0]
@@ -51,10 +59,17 @@ class Game:
         self.min_num_of_nukes = 5
         self.max_num_of_nukes = 15
 
+        # self.min_num_of_nukes = 98
+        # self.max_num_of_nukes = 98
+
         # 0: position, 1: color, 2: num of nukes, 3: ready or not, 4: debug mode, 5: new player
-        self.INITAL_PLAYER_STARTING_STATE = [[-10, -20], None, 0, False, False, True]
+        self.INITAL_PLAYER_STARTING_STATE = [[-10, 20], None, 0, False, False, True]
         for i in range(4):
             self.players.append(self.INITAL_PLAYER_STARTING_STATE)
+        for i in range(4):
+            self.players_previous_space.append([0, 0])
+        for i in range(4):
+            self.player_travelled_on_movable.append(False)
         self.started = False
         self.nukes = []
         if not debug.disable_snakes_and_ladders:
@@ -235,7 +250,7 @@ class Game:
             self.player_to_move += 1
             if self.player_to_move > 4:
                 self.player_to_move = 1
-            if self.players[self.player_to_move][5]:
+            if self.players[self.player_to_move][0] == [-10, 20]:
                 continue
             next_player_to_move_found = True
 
@@ -268,15 +283,22 @@ class Game:
         self.check_collision(p, nukes=True)
 
     def check_collision(self, p, nukes = False):
+        self.player_travelled_on_movable[p] = False
         if not nukes:
             for snake in range(len(self.snakes)):
                 if self.players[p][0] == self.snakes[snake][0]:
+                    self.players_previous_space[p] = self.snakes[snake][0]
                     self.snakes_gone_down += 1
                     self.player_collide(p, self.snakes[snake][1])
+                    self.player_travelled_on_movable[p] = True
+                    break
             for ladder in range(len(self.ladders)):
                 if self.players[p][0] == self.ladders[ladder][0]:
+                    self.players_previous_space[p] = self.ladders[ladder][0]
                     self.ladders_gone_up += 1
                     self.player_collide(p, self.ladders[ladder][1])
+                    self.player_travelled_on_movable[p] = True
+                    break
         else:
             for nuke in range(len(self.nukes)):
                 if tuple(self.players[p][0]) == self.nukes[nuke]:
@@ -300,63 +322,77 @@ class Game:
 
     def player_win(self, p):
         self.winner = p
+        self.winner_set = True
+
+        #old code version
+        # genuine_win = False
+        # for player in range(1, 5):
+        #     if self.players[player][0] == [0, 9]:
+        #         self.winner = p
+        #         genuine_win = True
+        #         self.winner_set = True
+        # if not genuine_win:
+        #     self.winner = self.player_to_move
+
 
     # this function originally sent everyone but the nuking player back to the start
     def player_uses_nuke(self, p):
         self.players[p][2] -= 1
         if not debug.disable_nuke_movement:
-            for player in range(1, len(self.players)):
-                self.players[player][0] = [random.randint(0, 9), random.randint(0, 8)]
+            for player in range(1, 5):
+                if not self.players[player][5]:
+                    self.players[player][0] = [random.randint(0, 9), random.randint(0, 8)]
+                    self.check_collision(player)
+                    self.check_collision(player, nukes = True)
         self.nuke_used = True
         self.num_nukes_used += 1
         self.degrade_game()
 
     def degrade_game(self):
-        degrade_generated = False
-        while not degrade_generated:
-            if self.board >= 3 and self.discoloration == 5 and self.pieces_degraded == 1 and self.dice_degraded == 1 and self.degraded_nuke_text == 1:
-                if self.board == 5:
-                    degrade_generated = True
-                elif self.genocide == 0:
-                    self.genocide = 1
-                    degrade_generated = True
+        degrade_tokens = 1
+        if random.randint(1, 4) == 1:
+            degrade_tokens += 1
+        while degrade_tokens > 0:
+            degrade_num = random.randint(1, 5)
+            if self.board == 4 and self.discoloration == 5 and self.pieces_degraded == 1 and self.dice_degraded == 1 and self.degraded_nuke_text == 1:
+                if self.snakes_and_ladders_degraded == 0:
+                    self.snakes_and_ladders_degraded = 1
+                    degrade_tokens -= 1
                 elif self.piece_shake == 0:
                     self.piece_shake = 1
-                    degrade_generated
+                    degrade_tokens -= 1
                 else:
-                    self.board += 1
-                    degrade_generated = True
-            degrade_num = random.randint(1, 5)
+                    degrade_tokens = 0
             if degrade_num == 1:
-                if self.board == 3:
+                if self.board == 4:
                     continue
                 else:
                     self.board += 1
-                    degrade_generated = True
+                    degrade_tokens -= 1
             if degrade_num == 2:
                 if self.discoloration == 5:
                     continue
                 else:
                     self.discoloration += 1
-                    degrade_generated = True
+                    degrade_tokens -= 1
             if degrade_num == 3:
                 if self.pieces_degraded == 1:
                     continue
                 else:
                     self.pieces_degraded += 1
-                    degrade_generated = True
+                    degrade_tokens -= 1
             if degrade_num == 4:
                 if self.dice_degraded == 1:
                     continue
                 else:
                     self.dice_degraded += 1
-                    degrade_generated = True
+                    degrade_tokens -= 1
             if degrade_num == 5:
                 if self.degraded_nuke_text == 1:
                     continue
                 else:
                     self.degraded_nuke_text += 1
-                    degrade_generated = True
+                    degrade_tokens -= 1
         # self.nuke_used = False
 
     def set_color(self, p, color):
@@ -367,6 +403,7 @@ class Game:
         # 0: position. 1: color. 2: num of nukes. 3: ready to play or not. 4: debug on
         self.num_of_players += 1
         self.players[p] = [[0, 0], None, 0, False, debug, False]
+        self.debug_give_stuff(p)
         self.player_ids_connected.append(id_count)
         if debug:
             self.activate_debug(p)
@@ -380,12 +417,13 @@ class Game:
         if not self.started:
             self.players[p] = self.INITAL_PLAYER_STARTING_STATE
         else:
-            self.players[p][0] = [-10, -20]
+            self.players[p][0] = [-10, 20]
             self.players[p][5] = True
-        if self.player_to_move == p:
-            self.next_player_to_move()
+        if self.num_of_players > 0:
+            if self.player_to_move == p:
+                self.next_player_to_move()
         del self.player_ids_connected[self.player_ids_connected.index(id_count)]
-        if self.started and self.num_of_players == 1:
+        if self.started and self.num_of_players == 1 and not self.winner_set:
             self.player_win(self.player_to_move)
 
     def player_ready_up(self, p):
@@ -405,12 +443,14 @@ class Game:
             debug_color = "Blue"
         if p == 4:
             debug_color = "Yellow"
+        self.set_color(p, debug_color)
+        self.player_ready_up(p)
+
+    def debug_give_stuff(self, p):
         if debug.let_there_be_nukes:
             self.players[p][2] = 100
         if debug.i_just_want_to_win:
             self.players[p][0] = [1, 9]
-        self.set_color(p, debug_color)
-        self.player_ready_up(p)
 
     # def move_player(self, p, amount):
     #     self.players[p][0] += amount
