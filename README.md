@@ -7,6 +7,6 @@ To play, run python3 on client.py, in the same directory as gameconfig.ini and t
 
 Comes packed with sound effects and music that is totally original and I made myself yes (music: Papers Please theme and But Nobody Came from Undertale, sound effects MW2 nuke sounds)
 
-<img align="right" width="400" height="400" src="https://github.com/coding-with-nottnott/SnakesLaddersAndNukes/blob/main/screenshots/reallyworse.png">
+<img align="right" width="390" height="390" src="https://github.com/coding-with-nottnott/SnakesLaddersAndNukes/blob/main/screenshots/reallyworse.png">
 
-<img align="left" width="400" height="400" src="https://github.com/coding-with-nottnott/SnakesLaddersAndNukes/blob/main/screenshots/slightlyworse.png">
+<img align="left" width="390" height="390" src="https://github.com/coding-with-nottnott/SnakesLaddersAndNukes/blob/main/screenshots/slightlyworse.png">
