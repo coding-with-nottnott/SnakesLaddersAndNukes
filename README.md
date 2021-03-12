@@ -1,7 +1,9 @@
 <p align="center"><img width="500" height="500" src="https://github.com/coding-with-nottnott/SnakesLaddersAndNukes/blob/main/screenshots/title.png"></p>
 
 # Snakes Ladders And Nukes
-A server-client game of Snakes and Ladders with the distinction that there are also nuclear weapons. Pick up the biggest atomic bombs around as you move around the board and constantly nuke your opponents (or usually when they're 6 or less squares away from winning) to achieve victory. The game progressively gets more dystopic and scary as more nukes are used, because in nuclear war, there are no winners ヾ(≧▽≦*)o
+A server-client game of Snakes and Ladders with the distinction that there are also nuclear weapons. Pick up the biggest atomic bombs around as you move around the board and constantly nuke your opponents (or usually when they're 6 or less squares away from winning) to achieve victory. 
+
+The game progressively gets more dystopic and scary as more nukes are used, because in nuclear war, there are no winners ヾ(≧▽≦*)o
 
 To play, you can:
 1. Run client.exe
